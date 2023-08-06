@@ -1,0 +1,13 @@
+asynctest
+black==23.3.0
+flake8
+pre-commit
+pyre-check==0.9.18
+pytest
+pytest-asyncio
+pytest-cov
+pytest-timeout
+sphinx
+sphinx_rtd_theme
+twine
+wheel
