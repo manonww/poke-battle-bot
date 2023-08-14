@@ -1,14 +1,15 @@
-from poke_env.teambuilder import Teambuilder
-import numpy as np
+import subprocess
 import time
 from typing import Union, Any
 import asyncio
-from loguru import logger
-from poke_env.player.internals import POKE_LOOP
 import tabulate
+from loguru import logger
+import numpy as np
 from game_setup import MyPokedex
 from driver import Driver
+from poke_env.player.internals import POKE_LOOP
 from poke_env.player.utils import cross_evaluate, background_cross_evaluate
+from poke_env.teambuilder import Teambuilder
 class Team:
     ''' Parent class that contains the pokemon rooster and the driver which is agent '''
 
@@ -33,18 +34,22 @@ class Team:
         logger.info(self.rooster)
         return self.rooster
     
+class MyTeamBuilder(Teambuilder):
+    def __init__(self, team:str):
+        #self.team = self.join_team(self.parse_showdown_team(team))
+        self.team = team
+    def yield_team(self):
+        return self.team
 
-#custom_builder = RandomTeamFromPool([team_1, team_2])
+from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer
 
-from poke_env.player import RandomPlayer
+def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
+    ''' Generate a random team directly from showdown server '''
+    folder_path = r"C:\Users\diana\Documents\Python projects\pokemon\pokemon-showdown"
+    gen_node_command = f'node pokemon-showdown generate-team {battle_format}'
+    val_node_command = f'node pokemon-showdown validate-team {battle_format} '
 
-player_1 = RandomPlayer(
-    battle_format="gen1randombattle",
-#    team=custom_builder,
-    max_concurrent_battles=10,
-    save_replays = True
-)
-
+    return subprocess.check_output(f'cd /d {folder_path} && {gen_node_command}', shell=True).decode()
 
 def generate_random_teams(n:int=10,battle_format:str="gen1randombattle",):
     ''' '''
@@ -63,20 +68,46 @@ def create_battles(players:list, n_battles_each:int):
         asyncio.gather()
         asyncio.create_task(player.battle_against())
 
+async def simple_tournament(n_rounds:int = 200,):
+    current_round = 0
+    team1 = MyTeamBuilder(generate_random_team_showdown())
+    team2 = MyTeamBuilder(generate_random_team_showdown())
+    player_1 = SimpleHeuristicsPlayer(
+    battle_format="gen1ubers",
+    team=team1,
+    max_concurrent_battles=10,
+    save_replays = True)
+
+    player_2 = SimpleHeuristicsPlayer(
+    battle_format="gen1ubers",
+    team=team2,
+    max_concurrent_battles=10)
+    await player_1.battle_against(player_2)
+    player_1.n_lost_battles
+    while n_rounds > current_round:
+        logger.info(f"round: {current_round}")
+        if player_1.n_lost_battles == 0:
+            player_1._save_replays = True
+        else: 
+            player_1 = player_2
+        #player_1 is winning mon
+        player_2 = SimpleHeuristicsPlayer(
+        battle_format="gen1ubers",
+        team=MyTeamBuilder(generate_random_team_showdown()),
+        max_concurrent_battles=10)
+
+        await player_1.battle_against(player_2)
+        current_round +=1
+    logger.info(f"final champion won {player_1.n_won_battles}")
+
+
+
+
+
 async def main():
     start_time = time.time()
-    n_players = 1
-    teams = generate_random_teams(n_players)
-   
-    #players = [player.driver for player in teams]
-    #end = (asyncio.run_coroutine_threadsafe( cross_evaluate(players, 2), POKE_LOOP))
-    #logger.info(end.result(timeout=10000))
-    #create_battles(players, 2)
-    #await cross_evaluate(players, 2)
 
-
-    teams[0].create_random_team(MyPokedex())
-    #logger.info(this_gen_pokedex.pokedex["rhydon"])
+    await simple_tournament(200)
 
     logger.info(f"total time: {time.time() - start_time}")
 if __name__ == "__main__":
