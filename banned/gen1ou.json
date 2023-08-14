@@ -1,5 +1,5 @@
 {
-    "pokemon":["mew", "mewtwo"],
+    "pokemon":["mew", "mewtwo", "ditto"],
     "items" : [],
     "moves" : ["doubleteam", "minimize", "fissure", "guillotine", "horndrill"]
 }
