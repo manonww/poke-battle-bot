@@ -6,7 +6,7 @@ import io
 import time
 import  pickle
 from loguru import logger
-from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer
+from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer, Player
 
 from game_setup import MyPokedex
 from poke_env.teambuilder import Teambuilder
@@ -19,7 +19,7 @@ class MyTeamBuilder(Teambuilder):
     def yield_team(self):
         return self.team
 
-def replay_saving(player,to_save):
+def replay_saving(player:Player,to_save:bool) -> Player:
     player._save_replays = to_save
     return player
 
@@ -50,9 +50,8 @@ async def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
         else:
             logger.info(val_stderr.decode())
 
-            
-
-async def return_team(i):
+        
+async def return_team():
     team = MyTeamBuilder(await generate_random_team_showdown())
     player = SimpleHeuristicsPlayer(
             battle_format="gen1ubers",
@@ -64,7 +63,7 @@ async def return_team(i):
 async def generate_players(player_list:list,n_new:int):
     ''' Generate new random players '''
     if n_new >0:
-        tasks = [return_team(i) for i in range(0, n_new)]
+        tasks = [return_team() for i in range(0, n_new)]
         results = await asyncio.gather(*tasks)
         player_list += results
     return player_list
@@ -130,10 +129,7 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
             with open(f"hall_of_fame/round_{big_n}_winners.pkl", 'wb') as file:
                 pickle.dump(save_teams, file)
 
-    return big_tournament_players
-
-                
-
+    return big_tournament_players                
 
 async def simple_tournament(n_rounds:int = 1000,):
     current_round = 0

@@ -10,6 +10,8 @@ class AbstractPokemon():
         self.ability = None
         self.moves = None
         self.evs = None
+        self.nature = None
+        self.held_item = None
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -48,10 +50,10 @@ class AbstractPokemon():
         
         assert len(self.moves) ==4
 
-    def randomize_all(self, item_list:list, nature_list:list, ):
+    def randomize_all(self ):
         ''' Choose random ability, evs, moveset, nature and held item'''
-        self.randomize_ability()
-        self.randomize_evs()
+        #self.randomize_ability()
+        #self.randomize_evs()
         self.randomize_moveset()
-        self.held_item = np.random.choice(item_list)
-        self.nature = np.random.choice(nature_list)
+        #self.held_item = np.random.choice(item_list)
+        #self.nature = np.random.choice(nature_list)
