@@ -11,6 +11,8 @@ from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer, Player
 from game_setup import MyPokedex
 from poke_env.teambuilder import Teambuilder
 from poke_env.player.utils import cross_evaluate, background_cross_evaluate
+from team_generator import Team
+from showdown_api import generate_random_team_showdown, validate_team
 
 class MyTeamBuilder(Teambuilder):
     def __init__(self, team:str):
@@ -23,32 +25,6 @@ def replay_saving(player:Player,to_save:bool) -> Player:
     player._save_replays = to_save
     return player
 
-
-async def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
-    ''' Generate a random team directly from showdown server '''
-    #folder_path = r"C:\Users\diana\Documents\Python projects\pokemon\pokemon-showdown"
-    folder_path = r"C:/Users/Robert/Downloads/Cheating is learning/pokemon-showdown"
-    gen_node_command = f'node pokemon-showdown generate-team {battle_format}'
-    val_node_command = f'node pokemon-showdown validate-team {battle_format} '
-    
-    while True:
-        #generate team
-        process = await asyncio.create_subprocess_shell(f'cd /d {folder_path} && {gen_node_command}',  stdout=asyncio.subprocess.PIPE)
-        team, _ = await process.communicate()
-        #check if team is valid
-        val_process = await asyncio.create_subprocess_shell(
-            f'cd /d {folder_path} && {val_node_command} ',
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        val_stdout, val_stderr = await val_process.communicate(input=team)
-        #if valid return team
-        if len(val_stderr) ==0:
-            return team.decode()
-        #else read error
-        else:
-            logger.info(val_stderr.decode())
 
         
 async def return_team():
@@ -85,7 +61,7 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
         pass
     return player_list
 
-async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_rounds=10 ):
+async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_rounds=10 ) -> list:
     ''' overarching rules for tournement'''
     big_tournament_players = []
     for big_n in range(n_big_rounds):
@@ -125,7 +101,6 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
         #save winners every 10 big rounds
         if big_n % 10 ==0:
             save_teams = [winner._team.team for winner in big_tournament_players ] 
-
             with open(f"hall_of_fame/round_{big_n}_winners.pkl", 'wb') as file:
                 pickle.dump(save_teams, file)
 

@@ -1,5 +1,7 @@
 import numpy as np
 import random
+from loguru import logger
+
 class AbstractPokemon():
     def __init__(self, name:str, types:list, possible_abilities:list, possible_moves:list ) -> None:
         self.name = name
@@ -42,6 +44,7 @@ class AbstractPokemon():
         ''' Choose 4 random moves for pokemon'''
         possible_moves = self.possible_moves
         self.moves = []
+        logger.info(f"randomizing moves for {self.name} poss moves: {len(possible_moves)}")
         #choose 4 random moves 
         for _ in range(4):
             move = np.random.choice(possible_moves)

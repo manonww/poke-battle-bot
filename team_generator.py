@@ -1,6 +1,7 @@
 import time
 from typing import Union, Any
 import asyncio
+import random
 from loguru import logger
 import numpy as np
 from game_setup import MyPokedex
@@ -8,7 +9,8 @@ from driver import Driver
 from poke_env.player.internals import POKE_LOOP
 from poke_env.player import SimpleHeuristicsPlayer
 from poke_env.teambuilder import TeambuilderPokemon, Teambuilder
-from tournament import big_tournament
+from showdown_api import validate_team
+from typing import Union,List
 import pickle
 class Team(Teambuilder):
     ''' Parent class that contains the pokemon rooster and the driver which is agent '''
@@ -18,17 +20,38 @@ class Team(Teambuilder):
         self.driver = driver
         self.battle_format = battle_format
 
-    def create_random_team(self, pokedex:MyPokedex):
-        self.rooster = []
-        options = list(pokedex.pokedex.keys())
-        for _ in range(6):
-            choice = np.random.choice(options)
-            pokemon = pokedex.pokedex[choice]
-            options.remove(choice)
+    
+    async def validate_pokemon(self, pokemon:TeambuilderPokemon) ->bool:
+        ''' Checks if individual pokemon is valid for showdown'''
+        valid = await validate_team(pokemon.formatted, "gen1ou")
+        return valid
+    
+    async def create_random_pokemon(self,i:int, options:List[str], pokedex:MyPokedex) ->TeambuilderPokemon:
+        ''' Creates and validates random pokemon based on int and options '''
+        valid = False
+        while not valid:
+            pokemon = pokedex.pokedex[options[i]]
             #choose random ability, evs, and moveset,
             pokemon.randomize_all()
-            self.rooster.append(TeambuilderPokemon(species=pokemon.name, moves=pokemon.moves, level=100))
-        self.rooster = self.join_team(self.rooster)
+            tbpokemon = TeambuilderPokemon(species=pokemon.name, moves=pokemon.moves, level=100)
+            valid = await self.validate_pokemon(tbpokemon)
+            #if pokemon is not valid we choose another one
+            i += 10
+        return tbpokemon
+    
+
+    async def create_random_team(self, pokedex:MyPokedex):
+        ''' Create a random team and validates it'''
+        valid_team = False
+        while not valid_team:
+            self.rooster = []
+            options = list(pokedex.pokedex.keys())
+            random.shuffle(options)
+            # create and validate random pokemons async
+            tasks = [asyncio.create_task(self.create_random_pokemon(i, options, pokedex)) for i in range(6)]
+            results = await asyncio.gather(*tasks)
+            self.rooster = self.join_team(results)
+            valid_team = await validate_team(self.rooster, "gen1ou")
 
     def yield_team(self):
         #logger.info(self.rooster)
@@ -52,31 +75,3 @@ def create_battles(players:list, n_battles_each:int):
         asyncio.gather()
         asyncio.create_task(player.battle_against())
 
-
-async def main():
-    start_time = time.time()
-    pokedex = MyPokedex()
-    team = Team()
-    team.create_random_team(pokedex)
-    #await simple_tournament(1000)
-    #await big_tournament(n_big_group= 25, n_small_group =5, n_big_rounds=1 )
-    player_1 = SimpleHeuristicsPlayer(
-    battle_format="gen1ubers",
-    team=team,
-    max_concurrent_battles=10,
-    save_replays = True)
-
-    player_2 = SimpleHeuristicsPlayer(
-    battle_format="gen1ubers",
-    team=team,
-    max_concurrent_battles=10,
-    save_replays = True)
-
-    logger.info(player_1._team.yield_team())
-
-    await player_1.battle_against(player_2)
-
-    
-    logger.info(f"total time: {time.time() - start_time}")
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
