@@ -2,7 +2,8 @@ import random
 import subprocess
 import asyncio
 import heapq
-
+import io
+import time
 import  pickle
 from loguru import logger
 from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer
@@ -18,7 +19,12 @@ class MyTeamBuilder(Teambuilder):
     def yield_team(self):
         return self.team
 
-def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
+def replay_saving(player,to_save):
+    player._save_replays = to_save
+    return player
+
+
+async def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
     ''' Generate a random team directly from showdown server '''
     #folder_path = r"C:\Users\diana\Documents\Python projects\pokemon\pokemon-showdown"
     folder_path = r"C:/Users/Robert/Downloads/Cheating is learning/pokemon-showdown"
@@ -26,30 +32,47 @@ def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
     val_node_command = f'node pokemon-showdown validate-team {battle_format} '
     
     while True:
-        team = subprocess.check_output(f'cd /d {folder_path} && {gen_node_command}', shell=True)
-        try:
-            subprocess.check_output(f'cd /d {folder_path} && {val_node_command} ', shell=True, input=team).decode()
+        #generate team
+        process = await asyncio.create_subprocess_shell(f'cd /d {folder_path} && {gen_node_command}',  stdout=asyncio.subprocess.PIPE)
+        team, _ = await process.communicate()
+        #check if team is valid
+        val_process = await asyncio.create_subprocess_shell(
+            f'cd /d {folder_path} && {val_node_command} ',
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        val_stdout, val_stderr = await val_process.communicate(input=team)
+        #if valid return team
+        if len(val_stderr) ==0:
             return team.decode()
-        except:
-            print("invalid team")
-            pass
+        #else read error
+        else:
+            logger.info(val_stderr.decode())
 
-def generate_players(player_list:list,n_new:int):
+            
+
+async def return_team(i):
+    team = MyTeamBuilder(await generate_random_team_showdown())
+    player = SimpleHeuristicsPlayer(
+            battle_format="gen1ubers",
+            team=team,
+            max_concurrent_battles=10,
+            save_replays = False)
+    return player
+
+async def generate_players(player_list:list,n_new:int):
     ''' Generate new random players '''
-    for _ in range(n_new):
-            team = MyTeamBuilder(generate_random_team_showdown())
-            player = SimpleHeuristicsPlayer(
-                    battle_format="gen1ubers",
-                    team=team,
-                    max_concurrent_battles=10,
-                    save_replays = True)
-            player_list.append(player)
+    if n_new >0:
+        tasks = [return_team(i) for i in range(0, n_new)]
+        results = await asyncio.gather(*tasks)
+        player_list += results
     return player_list
 
 async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, top_n:int = 2, each_fights_n:int=1, log:bool = False) -> list:
     ''' create small n man tournment where they battle eachother and top_2 survives'''
     for n in range(n_rounds):
-        player_list = generate_players(player_list,n_new= n_players - len(player_list))
+        player_list = await generate_players(player_list,n_new= n_players - len(player_list))
         results = await asyncio.wait_for(cross_evaluate(player_list,each_fights_n), timeout=n_players**3)
         #get top n players
         parsed_results = {key:sum(value for value in results[key].values() if value is not None) for key in results}
@@ -58,8 +81,9 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
         #logger.print(parsed_results)
         player_list = winner_list
     if log:
-        logger.info(parsed_results)
-        logger.info(top_n_players)
+        #logger.info(parsed_results)
+        #logger.info(top_n_players)
+        pass
     return player_list
 
 async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_rounds=10 ):
@@ -68,8 +92,12 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
     for big_n in range(n_big_rounds):
         logger.info(f"big round {big_n}")
         #generate new players to fill the gaps
-        big_tournament_players  =  generate_players(big_tournament_players, n_new=n_big_group-len(big_tournament_players))
+        start_generation = time.time()
+        big_tournament_players  =  await generate_players(big_tournament_players, n_new=n_big_group-len(big_tournament_players))
+        logger.info(f"It took {time.time()-start_generation} secs to generate teams")
+        big_tournament_players = [replay_saving(player,False) for player in big_tournament_players]
         random.shuffle(big_tournament_players)
+        start_bracket = time.time()
         #create smaller brackets
         n_brackets = int(n_big_group/n_small_group)
         brackets_list = []
@@ -81,14 +109,20 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
                 except IndexError:
                     small_bracket.append(big_tournament_players[0])
             brackets_list.append(small_bracket)
+        logger.info(f"It took {time.time()-start_bracket} secs to generate brackets")
         #run mini tournements and get winners
+        start_mini_tour = time.time()
         small_winner_list = []
         for bracket in brackets_list:
             small_winners = await n_man_tournament(bracket,n_rounds=1,n_players=len(bracket), top_n=2, each_fights_n=3  )
             small_winner_list += small_winners
+        logger.info(f"It took {time.time()-start_mini_tour} secs to play mini tournaments")
         #run big tournament
-        big_winner_list = await n_man_tournament(small_winner_list,n_rounds=1, n_players=len(small_winner_list), top_n = n_small_group, each_fights_n=2, log=True)
+        start_big_tour = time.time()
+        small_winner_list = [replay_saving(player,True) for player in small_winner_list]
+        big_winner_list = await n_man_tournament(small_winner_list,n_rounds=1, n_players=len(small_winner_list), top_n = n_small_group, each_fights_n=3, log=False)
         big_tournament_players = big_winner_list
+        logger.info(f"It took {time.time()-start_big_tour} secs to play big tournaments")
         #save winners every 10 big rounds
         if big_n % 10 ==0:
             save_teams = [winner._team.team for winner in big_tournament_players ] 

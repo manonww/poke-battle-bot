@@ -55,7 +55,7 @@ async def main():
     start_time = time.time()
 
     #await simple_tournament(1000)
-    await big_tournament(n_big_group= 50, n_small_group =5, n_big_rounds=1 )
+    await big_tournament(n_big_group= 25, n_small_group =5, n_big_rounds=1 )
 
     
     logger.info(f"total time: {time.time() - start_time}")
