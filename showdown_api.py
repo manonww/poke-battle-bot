@@ -43,7 +43,9 @@ async def validate_team(team:str, battle_format:str) ->bool:
         return True
     #else read error
     else:
+        logger.info(team)
         logger.info(val_stderr.decode())
+    
         return False
     
 

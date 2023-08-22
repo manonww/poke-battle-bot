@@ -42,16 +42,16 @@ class AbstractPokemon():
 
     def randomize_moveset(self) -> None:
         ''' Choose 4 random moves for pokemon'''
-        possible_moves = self.possible_moves
+        possible_moves = self.possible_moves.copy()
         self.moves = []
-        logger.info(f"randomizing moves for {self.name} poss moves: {len(possible_moves)}")
+        #logger.info(f"randomizing moves for {self.name} poss moves: {len(possible_moves)}")
         #choose 4 random moves 
-        for _ in range(4):
+        for _ in range(min(4, len(possible_moves))):
             move = np.random.choice(possible_moves)
             self.moves.append(move)
             possible_moves.remove(move)
         
-        assert len(self.moves) ==4
+        #assert len(self.moves) ==4
 
     def randomize_all(self ):
         ''' Choose random ability, evs, moveset, nature and held item'''

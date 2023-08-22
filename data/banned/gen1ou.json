@@ -1,5 +1,5 @@
 {
-    "pokemon":["mew", "mewtwo", "ditto"],
+    "pokemon":["mew", "mewtwo", "ditto", "metapod", "caterpie", "kakuna", "weedle", "magikarp"],
     "items" : [],
-    "moves" : ["doubleteam", "minimize", "fissure", "guillotine", "horndrill", "dig", "fly"]
+    "moves" : ["doubleteam", "minimize", "fissure", "guillotine", "horndrill", "dig", "fly", "metronome"]
 }
