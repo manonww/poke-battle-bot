@@ -25,7 +25,7 @@ class Driver(Player):
         self.nn = DriverNetwork()
         self.nn.initilize_random((40,1),5)
 
-    @jit(nopython=True)
+    ##@jit(nopython=True)
     def transform_status(self, status)-> np.array:
         ''' Takes in status and one hot encodes it
             shape = n_statuses, '''
@@ -49,7 +49,7 @@ class Driver(Player):
         return status_array
 
 
-    @jit(nopython=True)
+    #@jit(nopython=True)
     def transform_boosts(self, boosts:Dict[str,int]) -> np.array:
         ''' Transforms boosts such as atk into array'''
         boosts_array = np.zeros(7)
@@ -61,7 +61,7 @@ class Driver(Player):
             n +=1
         return boosts_array
     
-    @jit(nopython=True)
+    #@jit(nopython=True)
     def transform_type(self,type:int) -> np.array:
         ''' One hot encodes type '''
         type_array = np.zeros(15)
@@ -100,7 +100,7 @@ class Driver(Player):
         
         return type_array
     
-    @jit(nopython=True)
+    #@jit(nopython=True)
     def parse_move_category(self,category:MoveCategory) -> int:
         ''' Parse move category to see if its status '''
         if category == MoveCategory.STATUS:
@@ -119,7 +119,7 @@ class Driver(Player):
 
         return moves_dmg_multiplier
 
-    #@jit
+    ##@jit
     def transform_move(self,move:Move, battle:Battle):
         ''' Transform move info such as expected damage, accuracy, status, boost '''
         #logger.info(move)
@@ -128,7 +128,7 @@ class Driver(Player):
             move_effectiveness = self.parse_move_effectiveness(move, battle)
         except:
             pass
-        expected_damage = move.base_power * move.accuracy * move.expected_hits * self.parse_move_effectiveness(move, battle)/100
+        expected_damage = move.base_power * move.accuracy * move.expected_hits * move_effectiveness/100
         status_category = self.parse_move_category(move.category)
         #status can be move like bulk up or thunder wave. TODO: clarify
         #logger.info(f"expected_damage: {expected_damage}")
@@ -136,7 +136,7 @@ class Driver(Player):
         return np.array([expected_damage, status_category]) 
 
 
-    #@jit
+    ##@jit
     def parse_active_pokemons_input(self,my_pokemon:Pokemon, opponent_pokemon:Pokemon, battle:Battle) -> np.array:
         ''' parse input of active pokemons in existing turn'''
         if my_pokemon is not None:
