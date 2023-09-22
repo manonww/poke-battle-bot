@@ -12,7 +12,7 @@ async def main(iterrations:int = 5, n_teams:int = 100, top_n:int = 10):
     logger.info("Get started")
     import logging
     logging.basicConfig(level=logging.ERROR) 
-    await big_tournament(n_big_rounds=2000)
+    await big_tournament(n_big_rounds=20000)
     ### LOOP
 
     # Create League
