@@ -7,9 +7,14 @@ from neural_network import DriverNetwork
 from poke_env.player import Player
 from poke_env.player.battle_order import DefaultBattleOrder
 import numpy as np
+from numba import jit
 from typing import Union
 import tensorflow as tf
 from typing import Dict
+import warnings
+from numba.core.errors import NumbaWarning
+
+warnings.simplefilter('ignore', category=NumbaWarning)
 
 from poke_env.data.gen_data import  GenData
 gen_data = GenData(1)
@@ -20,6 +25,7 @@ class Driver(Player):
         self.nn = DriverNetwork()
         self.nn.initilize_random((40,1),5)
 
+    @jit(nopython=True)
     def transform_status(self, status)-> np.array:
         ''' Takes in status and one hot encodes it
             shape = n_statuses, '''
@@ -42,6 +48,8 @@ class Driver(Player):
         
         return status_array
 
+
+    @jit(nopython=True)
     def transform_boosts(self, boosts:Dict[str,int]) -> np.array:
         ''' Transforms boosts such as atk into array'''
         boosts_array = np.zeros(7)
@@ -53,6 +61,7 @@ class Driver(Player):
             n +=1
         return boosts_array
     
+    @jit(nopython=True)
     def transform_type(self,type:int) -> np.array:
         ''' One hot encodes type '''
         type_array = np.zeros(15)
@@ -91,6 +100,7 @@ class Driver(Player):
         
         return type_array
     
+    @jit(nopython=True)
     def parse_move_category(self,category:MoveCategory) -> int:
         ''' Parse move category to see if its status '''
         if category == MoveCategory.STATUS:
@@ -98,23 +108,26 @@ class Driver(Player):
         else: 
             return 0
     
+    
     def parse_move_effectiveness(self, move:Move, battle:Battle):
         ''' Take a move and check how effective it is '''
-        moves_dmg_multiplier = 1
-        try:
-            moves_dmg_multiplier = move.type.damage_multiplier(
-                battle.opponent_active_pokemon.type_1,
-                battle.opponent_active_pokemon.type_2,
-                type_chart=TYPE_CHART)
-        except KeyError as e:
-            logger.info(e)
+        moves_dmg_multiplier = move.type.damage_multiplier(
+            battle.opponent_active_pokemon.type_1,
+            battle.opponent_active_pokemon.type_2,
+            type_chart=TYPE_CHART)
 
 
         return moves_dmg_multiplier
 
+    #@jit
     def transform_move(self,move:Move, battle:Battle):
         ''' Transform move info such as expected damage, accuracy, status, boost '''
         #logger.info(move)
+        move_effectiveness = 1
+        try: 
+            move_effectiveness = self.parse_move_effectiveness(move, battle)
+        except:
+            pass
         expected_damage = move.base_power * move.accuracy * move.expected_hits * self.parse_move_effectiveness(move, battle)/100
         status_category = self.parse_move_category(move.category)
         #status can be move like bulk up or thunder wave. TODO: clarify
@@ -122,6 +135,8 @@ class Driver(Player):
         #logger.info(f"inflicting_status: {status_category}")
         return np.array([expected_damage, status_category]) 
 
+
+    #@jit
     def parse_active_pokemons_input(self,my_pokemon:Pokemon, opponent_pokemon:Pokemon, battle:Battle) -> np.array:
         ''' parse input of active pokemons in existing turn'''
         if my_pokemon is not None:
@@ -178,7 +193,7 @@ class Driver(Player):
         #self.parse_bench_pokemons()
         #logger.info(active_input.shape)
         return active_input
-
+    
     def choose_top_legal_move(self,move_priority:np.array, battle:Battle) -> Union[Pokemon, Move]:
         ''' Choose the top legal move 
             Move1, Move2, Move3, Move4, Random switch'''
@@ -238,6 +253,7 @@ class Driver(Player):
 
         move_priority = self.nn.model.predict(self.parse_input(battle).reshape(1,38), verbose = 0)
         move = self.choose_top_legal_move(move_priority, battle)
+        #logger.info(f" {self.username} {move}")
         
         #logger.info(f"turn {battle.turn}, {battle.player_role} {move} finished: {battle.finished} trapped {battle.trapped} fswitch: {battle.force_switch}")
         

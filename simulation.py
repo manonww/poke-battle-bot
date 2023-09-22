@@ -10,9 +10,14 @@ from loguru import logger
 
 async def main(iterrations:int = 5, n_teams:int = 100, top_n:int = 10):
     logger.info("Get started")
+    import tensorflow as tf
+    start_t = time.time()
+    print(tf.__version__)
+    print(tf.config.list_physical_devices('GPU'))
     import logging
     logging.basicConfig(level=logging.ERROR) 
-    await big_tournament(n_big_rounds=20000)
+    await big_tournament(n_big_rounds=3)
+    logger.info(f"took in total {time.time()-start_t} seconds")
     ### LOOP
 
     # Create League

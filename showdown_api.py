@@ -31,8 +31,12 @@ async def generate_random_team_showdown(battle_format:str = "gen1ou") ->str:
 async def validate_team(team:str, battle_format:str) ->bool:
     ''' Validate team with pokemon showdown server to ensure its allowed in format '''
     val_node_command = f'node pokemon-showdown validate-team {battle_format} '
+    #import os
+    #env = os.environ.copy()
+    #env["CUDA_VISIBLE_DEVICES"] = "0"
     val_process = await asyncio.create_subprocess_shell(
             f'cd /d {Config.showdown_folder_path} && {val_node_command} ',
+            #env = env,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE

@@ -7,7 +7,7 @@ import time
 import  pickle
 from loguru import logger
 from poke_env.player import RandomPlayer, SimpleHeuristicsPlayer, Player
-
+from driver import Driver
 from game_setup import MyPokedex
 from poke_env.teambuilder import Teambuilder
 from poke_env.player.utils import cross_evaluate, background_cross_evaluate
@@ -29,11 +29,12 @@ async def return_player_with_team(pokedex:MyPokedex) -> Player:
     #team = MyTeamBuilder(await generate_random_team_showdown())
     team = Team()
     await team.create_random_team(pokedex)
-    player = SimpleHeuristicsPlayer(
+    player = Driver(
             battle_format="gen1ubers",
             team=team,
             max_concurrent_battles=20,
             save_replays = False)
+    player.random_nn()
     return player
 
 async def generate_players(player_list:list,n_new:int, pokedex:MyPokedex):
@@ -49,7 +50,7 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
     for n in range(n_rounds):
         try:
             player_list = await generate_players(player_list,n_new= n_players - len(player_list), pokedex=pokedex)
-            results = await asyncio.wait_for(cross_evaluate(player_list,each_fights_n), timeout=n_players**4)
+            results = await asyncio.wait_for(background_cross_evaluate(player_list,each_fights_n), timeout=n_players**4)
             #get top n players
             parsed_results = {key:sum(value for value in results[key].values() if value is not None) for key in results}
             top_n_players = [item[0] for item in heapq.nlargest(top_n, parsed_results.items(), key=lambda item: item[1])]
@@ -64,6 +65,7 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
         #logger.info(parsed_results)
         #logger.info(top_n_players)
         pass
+    logger.info("bracket finished")
     return player_list
 
 async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_rounds=10 ) -> list:
@@ -75,6 +77,7 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
             logger.info(f"big round {big_n}")
         #generate new players to fill the gaps
         #start_generation = time.time()
+        logger.info(f"big round {big_n}")
         logger.info("generating players for round")
         big_tournament_players  =   await generate_players(big_tournament_players, n_new=n_big_group-len(big_tournament_players), pokedex=pokedex)
         #logger.info(f"It took {time.time()-start_generation} secs to generate teams")
