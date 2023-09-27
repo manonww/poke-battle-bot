@@ -14,6 +14,8 @@ from poke_env.player.utils import cross_evaluate, background_cross_evaluate
 from team_generator import Team
 from showdown_api import generate_random_team_showdown, validate_team
 
+import traceback
+
 class MyTeamBuilder(Teambuilder):
     def __init__(self, team:str):
         #self.team = self.join_team(self.parse_showdown_team(team))
@@ -29,6 +31,11 @@ async def return_player_with_team(pokedex:MyPokedex) -> Player:
     #team = MyTeamBuilder(await generate_random_team_showdown())
     team = Team()
     await team.create_random_team(pokedex)
+    #player = RandomPlayer(
+    #        battle_format="gen1ubers",
+    #        team=team,
+    #        max_concurrent_battles=20,
+    #        save_replays = False)
     player = Driver(
             battle_format="gen1ubers",
             team=team,
@@ -49,8 +56,8 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
     ''' create small n man tournment where they battle eachother and top_2 survives'''
     for n in range(n_rounds):
         try:
-            #player_list = await generate_players(player_list,n_new= n_players - len(player_list), pokedex=pokedex)
-            results = await asyncio.wait_for(cross_evaluate(player_list,each_fights_n), timeout=n_players**4)
+            
+            results = await cross_evaluate(player_list,each_fights_n)
             #get top n players
             parsed_results = {key:sum(value for value in results[key].values() if value is not None) for key in results}
             top_n_players = [item[0] for item in heapq.nlargest(top_n, parsed_results.items(), key=lambda item: item[1])]
@@ -60,13 +67,13 @@ async def n_man_tournament(player_list=[],n_rounds:int =100, n_players:int = 5, 
         # if the server lags out, just pass the battles
         except Exception as  e:
             logger.info(e)
+            traceback.print_exc()
             return player_list[:top_n]
 
     if log:
         #logger.info(parsed_results)
         #logger.info(top_n_players)
         pass
-    logger.info("bracket finished")
     return player_list
 
 
@@ -74,7 +81,6 @@ def create_brackets(big_tournament_players:list, n_big_group:int, n_small_group:
     ''' Creates a dynamic number of brackets'''
     n_brackets = int(n_big_group/n_small_group)
     brackets_list = []
-    logger.info("Generating brackets")
     for _ in range(n_brackets):
         small_bracket = []
         while len(small_bracket) <  n_small_group:
@@ -91,7 +97,7 @@ async def hall_of_fame_tournament(big_tournament_players:list, big_n:int):
     hall_of_fame_winner = await n_man_tournament(big_tournament_players,n_rounds=1,n_players=len(big_tournament_players), top_n=1, each_fights_n=1 )
     save_teams = [winner._team.rooster for winner in hall_of_fame_winner ] 
     big_tournament_players = [replay_saving(player, False) for player in big_tournament_players]
-    with open(f"hall_of_fame/my_generator/round_{big_n}_winner.pkl", 'wb') as file:
+    with open(f"hall_of_fame/my_nn/round_{big_n}_winner.pkl", 'wb') as file:
         pickle.dump(save_teams, file)
 
 
@@ -106,33 +112,30 @@ async def big_tournament(n_big_group:int = 25, n_small_group:int =5, n_big_round
     for big_n in range(n_big_rounds):
         if big_n % 50 ==0:
             logger.info(f"big round {big_n}")
+            
         #merge old and new players
         big_tournament_players += new_backup_players
         #start_generation = time.time()
         new_backup_players = []
-        logger.info(f"big round {big_n}")
-        new_backup_players = generate_players(player_list=[], n_new = n_big_group-n_small_group, pokedex=pokedex)
+        new_backup_players_task = asyncio.create_task(generate_players(player_list=[], n_new = n_big_group-n_small_group*2, pokedex=pokedex))
         random.shuffle(big_tournament_players)
         #create smaller brackets
         brackets_list = create_brackets(big_tournament_players, n_big_group, n_small_group)
         #run mini tournements and get winners
         #run tournaments simulatniusly
-        logger.info(len(brackets_list))
-
-        logger.info("Running games")
-        tasks = [n_man_tournament(bracket,n_rounds=1,n_players=len(bracket), top_n=2, each_fights_n=4 ) for bracket in brackets_list]
-        
+        tasks = [ asyncio.create_task( n_man_tournament(bracket,n_rounds=1,n_players=len(bracket), top_n=2, each_fights_n=4 )) for bracket in brackets_list]
         results = await asyncio.gather(*tasks)
         #flatten list
         big_tournament_players = [item for sublist in results for item in (sublist if isinstance(sublist, list) else [sublist])]
         #logger.info(f"It took {time.time()-start_mini_tour} secs to play mini tournaments")
+
         #save winners every 100 rounds and play one game with replays
         
         if big_n % 100 ==0:
-            await hall_of_fame_tournament(big_tournament_players, big_n)
             logger.info("Running replay games")
-        new_backup_players = await new_backup_players
-        logger.info(len(new_backup_players))
+            await hall_of_fame_tournament(big_tournament_players, big_n)
+        new_backup_players = await asyncio.gather(new_backup_players_task)
+        new_backup_players = new_backup_players[0]
 
     return big_tournament_players                
 

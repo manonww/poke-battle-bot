@@ -16,7 +16,7 @@ async def main(iterrations:int = 5, n_teams:int = 100, top_n:int = 10):
     print(tf.config.list_physical_devices('GPU'))
     import logging
     logging.basicConfig(level=logging.ERROR) 
-    await big_tournament(n_big_rounds=3)
+    await big_tournament(n_big_group= 25, n_small_group = 5, n_big_rounds=2)
     logger.info(f"took in total {time.time()-start_t} seconds")
     ### LOOP
 

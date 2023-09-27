@@ -13,6 +13,7 @@ import tensorflow as tf
 from typing import Dict
 import warnings
 from numba.core.errors import NumbaWarning
+import time
 
 warnings.simplefilter('ignore', category=NumbaWarning)
 
@@ -202,10 +203,16 @@ class Driver(Player):
         available_moves = [move._id  for move in battle.available_moves]
         move_priority = move_priority.reshape(5)
         #logger.info(f"status:{battle.active_pokemon.status} available {(available_moves)} moves and {len(battle.available_switches)}, recharge:{battle.active_pokemon.must_recharge}")
-        
         #if we have to have to recharge
+        #logger.info(move_priority)
+        #logger.info(available_moves)
+        #logger.info(battle)
+
         if battle.active_pokemon.must_recharge and len(available_moves)>0:
             #logger.info(f"im gonna recharge: {type(available_moves[0])}:")
+            return self.create_order(battle.available_moves[0])
+        
+        if len(available_moves) == 1:
             return self.create_order(battle.available_moves[0])
             
         if battle.turn>100 and battle.active_pokemon.current_hp >0:
@@ -214,9 +221,9 @@ class Driver(Player):
             loop_counter = 0
             best_move = move_priority.argmax()
             #switch random pokemon
-            if loop_counter > 5:
+            if loop_counter >= 5:
                 logger.info("Loop over 5, choosing random")
-                self.choose_random_move()
+                return self.choose_random_move()
 
             if best_move == 4:
                 loop_counter += 1
@@ -251,10 +258,16 @@ class Driver(Player):
         ''' Take in input about the current state of the battle and 
         decide on which move to play / which pokemon to switch '''
 
-        move_priority = self.nn.model.predict(self.parse_input(battle).reshape(1,38), verbose = 0)
+
+        #logger.info(f"{battle.battle_tag} {battle.player_username} vs {battle.opponent_username}")
+        #start_time = time.time()
+        #move_priority = self.nn.model.predict(self.parse_input(battle).reshape(1,38), verbose = 0)
+        move_priority = self.nn.model(np.array(self.parse_input(battle)).reshape(1,38), training=False).numpy()
+        #logger.info(f"took { start_time-time.time()} to make priority")
+        #new_time = time.time()
         move = self.choose_top_legal_move(move_priority, battle)
         #logger.info(f" {self.username} {move}")
-        
+        #logger.info(f"took { new_time-time.time()} to choose legal move")
         #logger.info(f"turn {battle.turn}, {battle.player_role} {move} finished: {battle.finished} trapped {battle.trapped} fswitch: {battle.force_switch}")
         
         return move
